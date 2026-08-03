@@ -156,12 +156,14 @@ def process_pdf(pdf_path):
         os.chdir(doc_folder)
 
         logging.info("Starting PDF to Markdown conversion...")
+        # force_text=True: ensures text inside graphic/drawing areas is extracted as actual text instead of ignored/scrambled
         md_text = pymupdf4llm.to_markdown(
             doc=pdf_path,
             write_images=True,
             image_path=images_folder_name,
             image_format="png",
-            dpi=150
+            dpi=150,
+            force_text=True
         )
 
         # Write Markdown file
