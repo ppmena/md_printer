@@ -16,29 +16,18 @@ class TestMarkdownPrinter(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.pdf_path = os.path.join(self.test_dir, "sample.pdf")
 
-        # Generate a dynamic multi-page sample PDF using pymupdf
+        # Generate a dynamic sample PDF using pymupdf
         import pymupdf
         doc = pymupdf.open()
+        page = doc.new_page()
+        # Insert a title line and paragraph text
+        page.insert_text((50, 50), "Test Document Title", fontsize=16)
+        page.insert_text((50, 100), "This is a test paragraph to verify that structured Markdown conversion works perfectly.")
 
-        # Page 1
-        page1 = doc.new_page()
-        # Page 1 content with page numbers and a raster image
-        page1.insert_text((50, 30), "Page 1 of 2", fontsize=10) # Header page number to be stripped
-        page1.insert_text((50, 70), "Test Document Title", fontsize=16)
-        page1.insert_text((50, 120), "This is page one text to verify that structured Markdown conversion works perfectly.")
-
-        # Insert a tiny 1x1 pixel PNG image
+        # Insert a real 1x1 pixel PNG image to test image extraction in non-layout mode
         tiny_png_bytes = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00\x00\x03\x01\x01\x00\x18\xdd\x8d\xb0\x00\x00\x00\x00IEND\xaeB`\x82'
-        rect = pymupdf.Rect(100, 150, 120, 170)
-        page1.insert_image(rect, stream=tiny_png_bytes)
-
-        # Page 2
-        page2 = doc.new_page()
-        # Page 2 content with different page number style and the SAME identical image (to test deduplication)
-        page2.insert_text((50, 70), "This is page two text, containing more content details.")
-        # Insert the exact same identical PNG image to test SHA-256 deduplication
-        page2.insert_image(rect, stream=tiny_png_bytes)
-        page2.insert_text((50, 750), "- 2 -", fontsize=10) # Footer page number to be stripped
+        rect = pymupdf.Rect(100, 150, 200, 250)
+        page.insert_image(rect, stream=tiny_png_bytes)
 
         doc.save(self.pdf_path)
         doc.close()
@@ -59,20 +48,9 @@ class TestMarkdownPrinter(unittest.TestCase):
 
     def test_extract_pdf_title(self):
         title = printer_server.extract_pdf_title(self.pdf_path)
+        # It should extract "Test Document Title" or similar from first line
         self.assertTrue(len(title) > 0)
         self.assertIn("Title", title)
-        self.assertNotIn("Page", title)
-
-    def test_strip_page_numbers_from_page(self):
-        # Test cleaning various page number formats
-        page_text = "Page 1 of 2\nSome actual document content\n[ 2 ]\nAnother content line\n- 15 -"
-        cleaned = printer_server.strip_page_numbers_from_page(page_text)
-
-        # The page numbers at top/bottom should be cleaned, but actual lines kept
-        self.assertNotIn("Page 1 of 2", cleaned)
-        self.assertNotIn("- 15 -", cleaned)
-        self.assertIn("Some actual document content", cleaned)
-        self.assertIn("Another content line", cleaned)
 
     @patch("tkinter.Tk")
     @patch("tkinter.filedialog.asksaveasfilename")
@@ -102,17 +80,17 @@ class TestMarkdownPrinter(unittest.TestCase):
         expected_images_folder = os.path.join(expected_folder, "images")
         self.assertTrue(os.path.exists(expected_images_folder), "Images folder should exist inside the dedicated folder.")
 
-        # Verify Markdown content and that page numbers are removed
+        # Verify Markdown content
         with open(expected_md_file, "r", encoding="utf-8") as f:
             content = f.read()
-            self.assertIn("Title", content)
-            self.assertIn("Markdown", content)
-            self.assertNotIn("Page 1 of 2", content)
-            self.assertNotIn("- 2 -", content)
+            self.assertIn("Test", content)
+            self.assertIn("Document", content)
 
-        # Verify that ONLY ONE unique image file actually got saved inside the images folder due to SHA-256 deduplication
+        # Verify that images actually got saved inside the images folder
         saved_images = os.listdir(expected_images_folder)
-        self.assertEqual(len(saved_images), 1, "Only one unique image should be saved inside the images folder due to deduplication.")
+        self.assertTrue(len(saved_images) > 0, "At least one image should be saved inside the images folder.")
+        for img in saved_images:
+            self.assertTrue(img.endswith(".png"))
 
         # Verify that open_in_notepad_plus_plus was called with the final markdown file path
         mock_notepad.assert_called_once_with(expected_md_file)

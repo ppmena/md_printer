@@ -109,42 +109,8 @@ def open_in_notepad_plus_plus(filepath):
         except Exception as e:
             logging.error(f"Failed to open file automatically: {e}")
 
-def strip_page_numbers_from_page(page_text):
-    """Strips common page number patterns from the top or bottom of a page's text block."""
-    lines = page_text.splitlines()
-    if not lines:
-        return page_text
-
-    # Check the first 3 non-empty lines for page numbers
-    cleaned_top_indices = set()
-    non_empty_top_count = 0
-    for i in range(len(lines)):
-        if lines[i].strip():
-            non_empty_top_count += 1
-            if is_unimportant_line(lines[i]):
-                cleaned_top_indices.add(i)
-            if non_empty_top_count >= 3:
-                break
-
-    # Check the last 3 non-empty lines for page numbers
-    cleaned_bottom_indices = set()
-    non_empty_bottom_count = 0
-    for i in range(len(lines) - 1, -1, -1):
-        if lines[i].strip():
-            non_empty_bottom_count += 1
-            if is_unimportant_line(lines[i]):
-                cleaned_bottom_indices.add(i)
-            if non_empty_bottom_count >= 3:
-                break
-
-    # Reconstruct the text block excluding page number lines
-    all_cleaned_indices = cleaned_top_indices.union(cleaned_bottom_indices)
-    reconstructed_lines = [lines[i] for i in range(len(lines)) if i not in all_cleaned_indices]
-
-    return "\n".join(reconstructed_lines)
-
 def process_pdf(pdf_path):
-    """Converts PDF to structured Markdown and saves unique real embedded images only."""
+    """Converts PDF to structured Markdown and saves real embedded images only."""
     try:
         import pymupdf
         import pymupdf4llm
@@ -224,12 +190,9 @@ def process_pdf(pdf_path):
 
         # Extract ONLY real, embedded raster images using native PyMuPDF to meet the user requirement:
         # "Solo en el caso de imágenes reales, o información mostrada como imagen, debemos sacar solo imágenes."
-        # We also implement image deduplication via SHA-256 hash comparison.
-        logging.info("Extracting real embedded raster images with SHA-256 deduplication...")
+        logging.info("Extracting real embedded raster images...")
         doc = pymupdf.open(pdf_path)
         page_images = {}
-
-        saved_images_by_hash = {}  # hash -> relative_saved_path
 
         for page_num in range(len(doc)):
             page = doc[page_num]
@@ -244,50 +207,36 @@ def process_pdf(pdf_path):
                     image_bytes = base_image["image"]
                     image_ext = base_image["ext"]
 
-                    # Compute SHA-256 hash of image bytes to identify duplicate images
-                    img_hash = hashlib.sha256(image_bytes).hexdigest()
+                    # Create a unique filename for the real image
+                    img_name = f"image_p{page_num}_{img_idx}.{image_ext}"
+                    img_path = os.path.join(images_absolute_folder, img_name)
 
-                    if img_hash in saved_images_by_hash:
-                        # Image is a duplicate (e.g. repeating header/footer logo).
-                        # We reuse the existing saved image file and skip saving it again!
-                        relative_path = saved_images_by_hash[img_hash]
-                        logging.info(f"Duplicate image detected (SHA-256: {img_hash[:8]}...). Reusing {relative_path}.")
-                    else:
-                        # New unique image, save to disk
-                        img_name = f"image_{page_num}_{img_idx}.{image_ext}"
-                        img_path = os.path.join(images_absolute_folder, img_name)
-
-                        with open(img_path, "wb") as f_img:
-                            f_img.write(image_bytes)
-
-                        relative_path = f"{images_folder_name}/{img_name}"
-                        saved_images_by_hash[img_hash] = relative_path
-                        logging.info(f"Extracted unique real image: {img_name}")
+                    # Save the image to the parallel directory
+                    with open(img_path, "wb") as f_img:
+                        f_img.write(image_bytes)
 
                     # Create portable relative Markdown link
-                    saved_image_links.append(f"\n\n![Image]({relative_path})\n\n")
+                    saved_image_links.append(f"\n\n![Image]({images_folder_name}/{img_name})\n\n")
+                    logging.info(f"Extracted real image: {img_name}")
                 except Exception as img_err:
                     logging.error(f"Could not extract image with xref {xref}: {img_err}")
 
             if saved_image_links:
                 page_images[page_num] = "".join(saved_image_links)
 
-        # Split text into pages to clean page numbers and inject real images
+        # Reconstruct the Markdown by seamlessly injecting real image references into their corresponding pages
         pages_text = md_text.split("\n----\n")
-
-        # Clean page numbers and inject image links
-        for page_num in range(len(pages_text)):
-            # Clean common page numbers (e.g., "Page 1 of 5") from this page's text
-            cleaned_page = strip_page_numbers_from_page(pages_text[page_num])
-
-            # Inject image links belonging to this page if any
-            if page_num in page_images:
-                cleaned_page += page_images[page_num]
-
-            pages_text[page_num] = cleaned_page
-
-        # Re-join pages with page separators
-        final_md_text = "\n----\n".join(pages_text)
+        if len(pages_text) == len(doc):
+            logging.info("Injecting extracted real image links at page level...")
+            for page_num, img_md in page_images.items():
+                pages_text[page_num] += img_md
+            final_md_text = "\n----\n".join(pages_text)
+        else:
+            # Fallback: append all real images at the bottom if page separators mismatch
+            logging.info("Injecting extracted real image links at the end of document...")
+            final_md_text = md_text
+            for page_num, img_md in page_images.items():
+                final_md_text += img_md
 
         # Save structured Markdown file to disk
         with open(final_md_path, "w", encoding="utf-8") as f:
