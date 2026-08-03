@@ -20,26 +20,17 @@ logging.basicConfig(
     ]
 )
 
-DEFAULT_DIR = r"C:\Users\jmenar\One Drive PERSONAL\OneDrive - TORNILLERIA Y SERVICIOS S.L.U\TORSESA 2026"
+DEFAULT_DIR = "C:\\"
 HOST = "127.0.0.1"
 PORT = 9100
 
 def get_fallback_dir():
-    """Returns a valid default directory if the primary OneDrive folder doesn't exist."""
+    """Returns a valid default directory if the primary C:\\ folder doesn't exist."""
     if os.path.exists(DEFAULT_DIR):
         return DEFAULT_DIR
 
-    # Fallback to OneDrive personal folder or standard user folders
-    user_home = os.path.expanduser("~")
-    onedrive_folders = [
-        os.path.join(user_home, "OneDrive"),
-        os.path.join(user_home, "OneDrive - TORNILLERIA Y SERVICIOS S.L.U"),
-        os.path.join(user_home, "Documents")
-    ]
-    for folder in onedrive_folders:
-        if os.path.exists(folder):
-            return folder
-    return user_home
+    # Fallback to user home directory if C:\\ cannot be accessed
+    return os.path.expanduser("~")
 
 def sanitize_filename(name):
     """Sanitizes the filename to remove invalid characters for Windows filesystems."""
@@ -101,9 +92,9 @@ def process_pdf(pdf_path):
         import pymupdf
         import pymupdf4llm
     except ImportError as e:
-        msg = f"Faltan dependencias de Python para procesar el PDF: {e}. Asegúrese de ejecutar install.bat"
+        msg = f"Missing Python dependencies to process PDF: {e}. Please run install.bat"
         logging.error(msg)
-        show_error_dialog("Error de Dependencias", msg)
+        show_error_dialog("Dependency Error", msg)
         return
 
     # 1. Propose default name
@@ -112,7 +103,7 @@ def process_pdf(pdf_path):
     if proposed_title:
         default_filename = f"{proposed_title}_{timestamp}.md"
     else:
-        default_filename = f"Documento_{timestamp}.md"
+        default_filename = f"Document_{timestamp}.md"
 
     # 2. Tkinter prompt in foreground
     root = tk.Tk()
@@ -125,7 +116,7 @@ def process_pdf(pdf_path):
 
     save_path = filedialog.asksaveasfilename(
         parent=root,
-        title="Guardar documento estructurado en Markdown",
+        title="Save Structured Document as Markdown",
         initialdir=initial_dir,
         initialfile=default_filename,
         defaultextension=".md",
@@ -144,13 +135,12 @@ def process_pdf(pdf_path):
     base_dir = os.path.dirname(save_path)
     filename_without_ext = os.path.splitext(os.path.basename(save_path))[0]
 
-    # Per user requirements, we create a dedicated folder for the printed document:
-    # "Crear entonces una carpeta por impresión. Sería ideal guardar las imágenes en paralelo."
+    # Create a dedicated directory per print job to organize markdown and parallel images cleanly
     doc_folder = os.path.join(base_dir, filename_without_ext)
     os.makedirs(doc_folder, exist_ok=True)
 
     final_md_path = os.path.join(doc_folder, f"{filename_without_ext}.md")
-    images_folder_name = "imagenes"
+    images_folder_name = "images"
     images_absolute_folder = os.path.join(doc_folder, images_folder_name)
     os.makedirs(images_absolute_folder, exist_ok=True)
 
@@ -187,9 +177,9 @@ def process_pdf(pdf_path):
         open_in_notepad_plus_plus(final_md_path)
 
     except Exception as e:
-        error_msg = f"Error durante la conversión de PDF a Markdown: {e}"
+        error_msg = f"Error during PDF to Markdown conversion: {e}"
         logging.error(error_msg, exc_info=True)
-        show_error_dialog("Error de Conversión", error_msg)
+        show_error_dialog("Conversion Error", error_msg)
 
 def show_error_dialog(title, message):
     """Displays an error dialog to the user."""
@@ -211,9 +201,9 @@ def run_server():
     try:
         server_socket.bind((HOST, PORT))
     except Exception as e:
-        msg = f"No se pudo iniciar el servidor de impresión en {HOST}:{PORT}. Tal vez ya está en ejecución: {e}"
+        msg = f"Could not start print server on {HOST}:{PORT}. Maybe it's already running: {e}"
         logging.error(msg)
-        show_error_dialog("Error de Servidor", msg)
+        show_error_dialog("Server Error", msg)
         sys.exit(1)
 
     server_socket.listen(5)
@@ -256,5 +246,85 @@ def run_server():
         except Exception as e:
             logging.error(f"Error in server loop: {e}", exc_info=True)
 
+def setup_windows_printer():
+    """Runs PowerShell to set up the TCP/IP port, virtual printer, and startup shortcut via a clean dynamic script."""
+    logging.info("Starting virtual printer configuration on Windows...")
+    print(" - Configuring Windows TCP/IP Port, Printer Queue, and Startup shortcut...")
+
+    script_dir = os.path.abspath(os.path.dirname(__file__))
+    server_script_path = os.path.join(script_dir, "printer_server.py")
+
+    # We use double curly braces {{ }} to prevent python f-string formatting errors on PowerShell braces
+    ps_script = f"""
+    $PortName = 'MarkdownPrinterPort'
+    $PrinterName = 'Markdown Printer'
+    $DriverName = 'Microsoft Print to PDF'
+
+    Write-Host ' - Checking port...'
+    $port = Get-PrinterPort -Name $PortName -ErrorAction SilentlyContinue
+    if ($null -eq $port) {{
+        Write-Host ' - Creating standard local TCP/IP Port on 127.0.0.1 (Port 9100)...'
+        Add-PrinterPort -Name $PortName -PrinterHostAddress '127.0.0.1'
+    }} else {{
+        Write-Host ' - Port already exists.'
+    }}
+
+    Write-Host ' - Checking print driver...'
+    $driver = Get-PrinterDriver -Name $DriverName -ErrorAction SilentlyContinue
+    if ($null -eq $driver) {{
+        Write-Error 'The Microsoft Print to PDF driver is not installed.'
+        exit 1
+    }}
+
+    Write-Host ' - Checking printer queue...'
+    $printer = Get-Printer -Name $PrinterName -ErrorAction SilentlyContinue
+    if ($null -eq $printer) {{
+        Write-Host ' - Creating virtual printer queue...'
+        Add-Printer -Name $PrinterName -DriverName $DriverName -PortName $PortName
+    }} else {{
+        Write-Host ' - Printer already exists.'
+    }}
+
+    Write-Host ' - Setting up system startup shortcut...'
+    $WshShell = New-Object -ComObject WScript.Shell
+    $ShortcutPath = Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs\\Startup\\MarkdownPrinter.lnk'
+    $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+    $Shortcut.TargetPath = 'pythonw.exe'
+    $Shortcut.Arguments = '"{server_script_path}"'
+    $Shortcut.WorkingDirectory = '{script_dir}'
+    $Shortcut.WindowStyle = 7
+    $Shortcut.Description = 'Markdown Printer Server'
+    $Shortcut.Save()
+    Write-Host ' - Startup shortcut configured successfully.'
+    """
+
+    # Write to a temporary ps1 file with UTF-8 BOM so Windows PowerShell processes non-ASCII characters and script cleanly
+    with tempfile.NamedTemporaryFile(suffix=".ps1", delete=False, mode="w", encoding="utf-8-sig") as f:
+        f.write(ps_script)
+        temp_path = f.name
+
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", temp_path],
+            capture_output=True,
+            text=True,
+            encoding="cp850"
+        )
+        if result.returncode != 0:
+            logging.error(f"PowerShell error during setup: {result.stderr}")
+            print(f"[ERROR] Failed to configure printer on Windows:\n{result.stderr}")
+            sys.exit(1)
+        else:
+            print(result.stdout)
+            logging.info(result.stdout)
+    finally:
+        try:
+            os.remove(temp_path)
+        except Exception:
+            pass
+
 if __name__ == "__main__":
-    run_server()
+    if len(sys.argv) > 1 and sys.argv[1] == "--setup":
+        setup_windows_printer()
+    else:
+        run_server()
