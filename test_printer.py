@@ -21,8 +21,8 @@ class TestMarkdownPrinter(unittest.TestCase):
         doc = pymupdf.open()
         page = doc.new_page()
         # Insert a title line and paragraph text
-        page.insert_text((50, 50), "Titulo del Documento de Prueba", fontsize=16)
-        page.insert_text((50, 100), "Este es un parrafo de prueba para verificar que la conversion funciona perfectamente.")
+        page.insert_text((50, 50), "Test Document Title", fontsize=16)
+        page.insert_text((50, 100), "This is a test paragraph to verify that structured Markdown conversion works perfectly.")
 
         # Draw a shape to simulate an image/graphics object
         rect = pymupdf.Rect(100, 150, 200, 250)
@@ -36,20 +36,20 @@ class TestMarkdownPrinter(unittest.TestCase):
         shutil.rmtree(self.test_dir)
 
     def test_sanitize_filename(self):
-        bad_name = "mi/archivo\\con:caracteres*prohibidos?.md"
+        bad_name = "my/file\\with:forbidden*characters?.md"
         good_name = printer_server.sanitize_filename(bad_name)
         self.assertNotIn("/", good_name)
         self.assertNotIn("\\", good_name)
         self.assertNotIn(":", good_name)
         self.assertNotIn("*", good_name)
         self.assertNotIn("?", good_name)
-        self.assertEqual(good_name, "mi_archivo_con_caracteres_prohibidos_.md")
+        self.assertEqual(good_name, "my_file_with_forbidden_characters_.md")
 
     def test_extract_pdf_title(self):
         title = printer_server.extract_pdf_title(self.pdf_path)
-        # It should extract "Titulo del Documento de Prueba" or similar from first line
+        # It should extract "Test Document Title" or similar from first line
         self.assertTrue(len(title) > 0)
-        self.assertIn("Prueba", title)
+        self.assertIn("Title", title)
 
     @patch("tkinter.Tk")
     @patch("tkinter.filedialog.asksaveasfilename")
@@ -75,15 +75,15 @@ class TestMarkdownPrinter(unittest.TestCase):
         expected_md_file = os.path.join(expected_folder, "test_document_output.md")
         self.assertTrue(os.path.exists(expected_md_file), "Markdown file should exist inside the dedicated folder.")
 
-        # And created an images subfolder "imagenes" inside the dedicated folder
-        expected_images_folder = os.path.join(expected_folder, "imagenes")
+        # And created an images subfolder "images" inside the dedicated folder
+        expected_images_folder = os.path.join(expected_folder, "images")
         self.assertTrue(os.path.exists(expected_images_folder), "Images folder should exist inside the dedicated folder.")
 
         # Verify Markdown content
         with open(expected_md_file, "r", encoding="utf-8") as f:
             content = f.read()
-            self.assertIn("Prueba", content)
-            self.assertIn("Documento", content)
+            self.assertIn("Test", content)
+            self.assertIn("Document", content)
 
         # Verify that images actually got saved inside the images folder
         saved_images = os.listdir(expected_images_folder)

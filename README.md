@@ -1,64 +1,60 @@
-# Markdown Printer (Impresora Virtual Markdown para Windows)
+# Markdown Printer (Virtual Markdown Printer for Windows)
 
-Una herramienta elegante y automatizada que se instala como una impresora virtual en Windows y convierte cualquier documento que imprimas en un formato **Markdown (.md) estructurado**, extrayendo las imágenes en paralelo de forma local.
-
----
-
-## 🚀 Características
-
-* **Sin controladores de terceros complejos:** Utiliza el controlador nativo de Windows `Microsoft Print to PDF` redirigido a un puerto TCP/IP local (`127.0.0.1:9100`), lo que garantiza un funcionamiento 100% estable, rápido y compatible con Windows 10/11.
-* **Conversión de Alta Calidad:** Utiliza el potente motor de `PyMuPDF` y `pymupdf4llm` para extraer títulos, encabezados, listas, tablas y texto fluido con alta fidelidad y velocidad.
-* **Extracción de Imágenes:** Si el documento contiene imágenes o gráficos, se extraen automáticamente en una subcarpeta paralela `imagenes/` y se insertan con sus respectivas referencias relativas `![](imagenes/imagen.png)` dentro del archivo Markdown.
-* **Estructura Organizada por Impresión:** Crea una carpeta dedicada por cada trabajo de impresión para mantener el archivo Markdown y sus recursos multimedia perfectamente ordenados.
-* **Cuadro de diálogo Nativo (Guardar como):** Al imprimir, se abrirá automáticamente un cuadro de diálogo flotante en primer plano para que elijas dónde guardar el archivo, proponiendo un nombre inteligente extraído del título del documento o basado en la fecha y hora.
-* **Ruta de OneDrive Predeterminada:** Está preconfigurado para abrir por defecto tu carpeta de OneDrive:
-  `C:\Users\jmenar\One Drive PERSONAL\OneDrive - TORNILLERIA Y SERVICIOS S.L.U\TORSESA 2026`
-  *(Si no existe, utiliza de forma inteligente tu carpeta de usuario o documentos como alternativa)*.
-* **Apertura Automática en Notepad++:** Una vez guardado con éxito, el archivo `.md` estructurado se abrirá automáticamente de inmediato en **Notepad++** para que puedas visualizarlo, editarlo o copiarlo.
-* **Ejecución Invisible en Segundo Plano:** El servidor de impresión se inicia de manera silenciosa al arrancar Windows (Startup) sin molestas ventanas negras de consola.
+An elegant, automated tool that installs as a virtual printer in Windows and automatically converts any printed document into a **structured Markdown (.md)** format, extracting images in parallel and saving everything locally.
 
 ---
 
-## 🛠️ Requisitos Previos
+## 🚀 Features
 
-Antes de realizar la instalación, asegúrate de cumplir con lo siguiente en tu sistema Windows:
-
-1. **Python 3.x instalado** y agregado al `PATH` del sistema (asegúrate de marcar la casilla *"Add Python to PATH"* durante la instalación de Python).
-2. **Notepad++ instalado** (en su ubicación predeterminada en `C:\Program Files\Notepad++\notepad++.exe` o similar).
-3. **Microsoft Print to PDF** habilitado en Windows (viene activo por defecto en Windows 10 y 11).
-
----
-
-## 📦 Instalación (Un Solo Clic)
-
-1. Descarga o clona este repositorio en una carpeta permanente de tu computadora (por ejemplo, `C:\md_printer` o dentro de tu OneDrive).
-2. Haz clic derecho sobre el archivo **`install.bat`** y selecciona **"Ejecutar como Administrador"**.
-3. El instalador se encargará de:
-   * Verificar la presencia de Python en tu sistema.
-   * Instalar y actualizar las librerías necesarias (`pymupdf`, `pymupdf4llm`).
-   * Configurar un puerto de red de impresión estándar en `127.0.0.1` en el puerto `9100`.
-   * Crear la impresora virtual **"Markdown Printer"** vinculada a este puerto.
-   * Configurar el inicio automático silencioso para que la impresora esté siempre lista cuando enciendas tu computadora.
-   * Iniciar el servicio en segundo plano de inmediato.
+* **Driverless Setup:** Built using Windows' native `Microsoft Print to PDF` driver redirected to a standard local TCP/IP Port (`127.0.0.1:9100`), ensuring 100% stability, speed, and compatibility on Windows 10/11.
+* **High-Fidelity Conversion:** Leverages `PyMuPDF` and `pymupdf4llm` layout-aware extraction to parse titles, headers, bullet lists, simple tables, and body paragraphs seamlessly.
+* **Image Extraction:** Embedded images and drawings are automatically extracted into a parallel `images/` directory and referenced correctly with portable relative Markdown image links (`![](images/img-X-Y.png)`).
+* **Dedicated Document Folders:** Keeps your workspace tidy by creating a dedicated directory per print job to store the `.md` file and its companion media assets together.
+* **Native Foreground Save Dialog:** When you print, a native Windows save file dialog pops up directly on top of your windows, allowing you to select where to save the document and proposing a sanitized filename derived from the document's extracted title.
+* **Default Directory (C:\\):** Preconfigured to open the save dialog at your system root `C:\` by default, with a seamless fallback to your User profile directory if root access is restricted.
+* **Notepad++ Integration:** Automatically opens the generated markdown document in **Notepad++** immediately upon saving so you can review or edit it instantly.
+* **Invisible Background Execution:** The server runs silently as a background service via `pythonw.exe` upon system startup, avoiding any intrusive command prompt windows on your desktop.
 
 ---
 
-## 📖 Instrucciones de Uso
+## 🛠️ Prerequisites
 
-¡Utilizarlo es sumamente sencillo!
+Before installing, please ensure your Windows environment matches the following prerequisites:
 
-1. Abre cualquier documento que desees convertir (un archivo PDF, un documento de Word, una página web en el navegador, una hoja de Excel, etc.).
-2. Presiona `Ctrl + P` (o ve al menú de Imprimir) y selecciona la impresora **`Markdown Printer`**.
-3. Haz clic en **Imprimir**.
-4. En pocos segundos, aparecerá la ventana nativa de Windows pidiéndote que elijas el nombre y la ubicación de tu archivo Markdown (apuntando por defecto a tu carpeta de OneDrive `TORSESA 2026`).
-5. Al hacer clic en **Guardar**, el programa convertirá el documento, organizará las imágenes, creará su carpeta correspondiente, y **abrirá el archivo Markdown listo en Notepad++**.
+1. **Python 3.x installed** and added to your system `PATH` (make sure to check the *"Add Python to PATH"* checkbox during Python installation).
+2. **Notepad++ installed** in its default location (`C:\Program Files\Notepad++\notepad++.exe` or `C:\Program Files (x86)\Notepad++\notepad++.exe`).
+3. **Microsoft Print to PDF** enabled in Windows Optional Features (enabled by default on Windows 10 & 11).
 
 ---
 
-## 📝 Registro de Eventos (Logs)
+## 📦 One-Click Installation
 
-Si alguna vez necesitas verificar el estado del servidor, comprobar errores o realizar un seguimiento de los documentos impresos, el programa escribe registros detallados en un archivo de log local ubicado en tu carpeta de usuario:
+1. Download or clone this repository to a permanent directory on your computer (e.g., `C:\md_printer`).
+2. Right-click **`install.bat`** and choose **"Run as Administrator"**.
+3. The installer will automatically:
+   * Verify your Python installation.
+   * Install and upgrade all required Python dependencies (`pymupdf`, `pymupdf4llm`).
+   * Add the local TCP/IP printer port at `127.0.0.1:9100`.
+   * Create the **"Markdown Printer"** virtual printer queue.
+   * Configure a silent background startup shortcut inside your Windows Startup folder.
+   * Spin up the background print server immediately so it's ready to use.
 
-📁 Path del Log: `C:\Usuarios\<Tu-Usuario>\.md_printer.log`
+---
 
-Puedes abrir este archivo en cualquier momento para ver todo el historial de impresión y depuración.
+## 📖 How to Use
+
+Using Markdown Printer is incredibly simple:
+
+1. Open any document you wish to convert (a PDF, a Word document, a webpage in your browser, an Excel spreadsheet, etc.).
+2. Press `Ctrl + P` (or go to File > Print) and select **`Markdown Printer`** from your printer list.
+3. Click **Print**.
+4. Within seconds, a native Save File dialog will appear in the foreground, starting at `C:\` and proposing a clean filename.
+5. Click **Save**. The conversion will run, images will be saved, and the file will **instantly open in Notepad++**!
+
+---
+
+## 📝 Event Logs
+
+If you ever need to inspect the status of the print server, debug an issue, or track converted documents, the server maintains detailed, timestamped records in your user directory:
+
+📁 Log File Location: `C:\Users\<Your-Username>\.md_printer.log`
