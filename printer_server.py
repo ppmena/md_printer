@@ -6,6 +6,7 @@ import tempfile
 import datetime
 import logging
 import subprocess
+import hashlib
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
@@ -44,13 +45,32 @@ def sanitize_filename(name):
     sanitized = re.sub(r'\s+', ' ', sanitized)
     return sanitized.strip()
 
+def is_unimportant_line(text_line):
+    """Checks if a given line is unimportant, such as a standalone page number or page count."""
+    text = text_line.strip()
+    if not text:
+        return True
+    # Match patterns such as standalone "1", "- 1 -", "Page 1", "Page 1 of 5", "Pág. 1", "1 / 5", etc.
+    patterns = [
+        r'^\s*-?\s*\d+\s*-?\s*$',                     # e.g., "1", "- 1 -", " 15 "
+        r'^\s*\[\s*\d+\s*\]\s*$',                    # e.g., "[1]"
+        r'^\s*(?i:page|pág|página|pag)\.?\s*\d+\s*$', # e.g., "Page 1", "Pág. 1"
+        r'^\s*(?i:page|pág|página|pag)\.?\s*\d+\s*(?i:of|de|/)\s*\d+\s*$',  # e.g., "Page 1 of 5", "Pág. 1 / 5"
+        r'^\s*\d+\s*/\s*\d+\s*$',                    # e.g., "1/5", "1 / 5"
+    ]
+    for pattern in patterns:
+        if re.match(pattern, text):
+            return True
+    return False
+
 def extract_pdf_title(pdf_path):
-    """Tries to extract a title from PDF metadata or content."""
+    """Tries to extract a title from PDF metadata or content, skipping page numbers."""
     try:
         import pymupdf
         doc = pymupdf.open(pdf_path)
         title = doc.metadata.get("title")
-        if title and title.strip():
+        if title and title.strip() and not is_unimportant_line(title):
+            doc.close()
             return sanitize_filename(title)
 
         # Fallback: inspect the first page text for potential titles
@@ -58,8 +78,11 @@ def extract_pdf_title(pdf_path):
             first_page_text = doc[0].get_text().splitlines()
             for line in first_page_text:
                 cleaned_line = line.strip()
-                if len(cleaned_line) > 3 and len(cleaned_line) < 100:
+                # Skip any lines that are empty or are page numbers/unimportant
+                if len(cleaned_line) > 3 and len(cleaned_line) < 100 and not is_unimportant_line(cleaned_line):
+                    doc.close()
                     return sanitize_filename(cleaned_line)
+        doc.close()
     except Exception as e:
         logging.error(f"Error trying to extract title from PDF: {e}")
     return ""
