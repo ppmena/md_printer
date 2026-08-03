@@ -87,7 +87,7 @@ def open_in_notepad_plus_plus(filepath):
             logging.error(f"Failed to open file automatically: {e}")
 
 def process_pdf(pdf_path):
-    """Converts PDF to structured Markdown and saves images."""
+    """Converts PDF to structured Markdown and saves real embedded images only."""
     try:
         import pymupdf
         import pymupdf4llm
@@ -148,38 +148,79 @@ def process_pdf(pdf_path):
     logging.info(f"Final Markdown path: {final_md_path}")
     logging.info(f"Images directory: {images_absolute_folder}")
 
-    # 3. Perform conversion using pymupdf4llm
+    # 3. Perform high-fidelity conversion using pymupdf4llm with Layout Mode active for robust formatting,
+    # but ignoring vector shapes/drawings to prevent them from being extracted as sliced graphic chunks.
     try:
-        # We temporarily change the current working directory to doc_folder
-        # so that relative images paths inside Markdown work beautifully
-        original_cwd = os.getcwd()
-        os.chdir(doc_folder)
+        logging.info("Starting high-fidelity PDF to Markdown conversion...")
 
-        logging.info("Starting PDF to Markdown conversion...")
+        # Ensure layout analysis is active to perfectly capture multi-column texts, headers, lists, and tables
+        pymupdf4llm.use_layout(True)
 
-        # VERY IMPORTANT: Disable the AI-layout module of PyMuPDF.
-        # This prevents the layout module from segmenting the page into raw image chunks,
-        # forcing the engine to extract pure text layer content as structured Markdown text,
-        # while only extracting real embedded images or image-based information.
-        pymupdf4llm.use_layout(False)
-
+        # We tell PyMuPDF4LLM to completely ignore background graphics and drawings, focus 100% on the text layers,
+        # and do not write any sliced layout image blocks.
         md_text = pymupdf4llm.to_markdown(
             doc=pdf_path,
-            write_images=True,
-            image_path=images_folder_name,
-            image_format="png",
-            dpi=150,
+            ignore_images=True,
+            write_images=False,
             force_text=True
         )
 
-        # Write Markdown file
+        # Extract ONLY real, embedded raster images using native PyMuPDF to meet the user requirement:
+        # "Solo en el caso de imágenes reales, o información mostrada como imagen, debemos sacar solo imágenes."
+        logging.info("Extracting real embedded raster images...")
+        doc = pymupdf.open(pdf_path)
+        page_images = {}
+
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            image_list = page.get_images(full=True)
+            saved_image_links = []
+
+            for img_idx, img in enumerate(image_list):
+                xref = img[0]
+                try:
+                    # Extract the raw bytes of the actual embedded image
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    image_ext = base_image["ext"]
+
+                    # Create a unique filename for the real image
+                    img_name = f"image_p{page_num}_{img_idx}.{image_ext}"
+                    img_path = os.path.join(images_absolute_folder, img_name)
+
+                    # Save the image to the parallel directory
+                    with open(img_path, "wb") as f_img:
+                        f_img.write(image_bytes)
+
+                    # Create portable relative Markdown link
+                    saved_image_links.append(f"\n\n![Image]({images_folder_name}/{img_name})\n\n")
+                    logging.info(f"Extracted real image: {img_name}")
+                except Exception as img_err:
+                    logging.error(f"Could not extract image with xref {xref}: {img_err}")
+
+            if saved_image_links:
+                page_images[page_num] = "".join(saved_image_links)
+
+        # Reconstruct the Markdown by seamlessly injecting real image references into their corresponding pages
+        pages_text = md_text.split("\n----\n")
+        if len(pages_text) == len(doc):
+            logging.info("Injecting extracted real image links at page level...")
+            for page_num, img_md in page_images.items():
+                pages_text[page_num] += img_md
+            final_md_text = "\n----\n".join(pages_text)
+        else:
+            # Fallback: append all real images at the bottom if page separators mismatch
+            logging.info("Injecting extracted real image links at the end of document...")
+            final_md_text = md_text
+            for page_num, img_md in page_images.items():
+                final_md_text += img_md
+
+        # Save structured Markdown file to disk
         with open(final_md_path, "w", encoding="utf-8") as f:
-            f.write(md_text)
+            f.write(final_md_text)
 
         logging.info("Conversion completed successfully!")
-
-        # Return to original CWD
-        os.chdir(original_cwd)
+        doc.close()
 
         # Open in Notepad++
         open_in_notepad_plus_plus(final_md_path)
