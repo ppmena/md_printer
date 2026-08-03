@@ -24,9 +24,10 @@ class TestMarkdownPrinter(unittest.TestCase):
         page.insert_text((50, 50), "Test Document Title", fontsize=16)
         page.insert_text((50, 100), "This is a test paragraph to verify that structured Markdown conversion works perfectly.")
 
-        # Draw a shape to simulate an image/graphics object
+        # Insert a real 1x1 pixel PNG image to test image extraction in non-layout mode
+        tiny_png_bytes = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00\x00\x03\x01\x01\x00\x18\xdd\x8d\xb0\x00\x00\x00\x00IEND\xaeB`\x82'
         rect = pymupdf.Rect(100, 150, 200, 250)
-        page.draw_rect(rect, color=(1, 0, 0), fill=(0, 1, 0))
+        page.insert_image(rect, stream=tiny_png_bytes)
 
         doc.save(self.pdf_path)
         doc.close()

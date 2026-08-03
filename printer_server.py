@@ -156,7 +156,13 @@ def process_pdf(pdf_path):
         os.chdir(doc_folder)
 
         logging.info("Starting PDF to Markdown conversion...")
-        # force_text=True: ensures text inside graphic/drawing areas is extracted as actual text instead of ignored/scrambled
+
+        # VERY IMPORTANT: Disable the AI-layout module of PyMuPDF.
+        # This prevents the layout module from segmenting the page into raw image chunks,
+        # forcing the engine to extract pure text layer content as structured Markdown text,
+        # while only extracting real embedded images or image-based information.
+        pymupdf4llm.use_layout(False)
+
         md_text = pymupdf4llm.to_markdown(
             doc=pdf_path,
             write_images=True,
