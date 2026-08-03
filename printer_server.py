@@ -256,5 +256,85 @@ def run_server():
         except Exception as e:
             logging.error(f"Error in server loop: {e}", exc_info=True)
 
+def setup_windows_printer():
+    """Runs PowerShell to set up the TCP/IP port, virtual printer, and startup shortcut via a clean dynamic script."""
+    logging.info("Iniciando configuración de la impresora virtual en Windows...")
+    print(" - Configurando puerto TCP/IP de Windows, impresora y acceso directo...")
+
+    script_dir = os.path.abspath(os.path.dirname(__file__))
+    server_script_path = os.path.join(script_dir, "printer_server.py")
+
+    # We use double curly braces {{ }} to prevent python f-string formatting errors on PowerShell braces
+    ps_script = f"""
+    $PortName = 'MarkdownPrinterPort'
+    $PrinterName = 'Markdown Printer'
+    $DriverName = 'Microsoft Print to PDF'
+
+    Write-Host ' - Verificando puerto...'
+    $port = Get-PrinterPort -Name $PortName -ErrorAction SilentlyContinue
+    if ($null -eq $port) {{
+        Write-Host ' - Creando puerto TCP/IP local en 127.0.0.1 (Puerto 9100)...'
+        Add-PrinterPort -Name $PortName -PrinterHostAddress '127.0.0.1'
+    }} else {{
+        Write-Host ' - El puerto ya existe.'
+    }}
+
+    Write-Host ' - Verificando controlador (driver)...'
+    $driver = Get-PrinterDriver -Name $DriverName -ErrorAction SilentlyContinue
+    if ($null -eq $driver) {{
+        Write-Error 'El controlador Microsoft Print to PDF no esta instalado.'
+        exit 1
+    }}
+
+    Write-Host ' - Verificando impresora...'
+    $printer = Get-Printer -Name $PrinterName -ErrorAction SilentlyContinue
+    if ($null -eq $printer) {{
+        Write-Host ' - Creando impresora virtual...'
+        Add-Printer -Name $PrinterName -DriverName $DriverName -PortName $PortName
+    }} else {{
+        Write-Host ' - La impresora ya existe.'
+    }}
+
+    Write-Host ' - Configurando acceso directo de inicio automatico...'
+    $WshShell = New-Object -ComObject WScript.Shell
+    $ShortcutPath = Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs\\Startup\\MarkdownPrinter.lnk'
+    $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+    $Shortcut.TargetPath = 'pythonw.exe'
+    $Shortcut.Arguments = '"{server_script_path}"'
+    $Shortcut.WorkingDirectory = '{script_dir}'
+    $Shortcut.WindowStyle = 7
+    $Shortcut.Description = 'Servidor de Impresion Markdown'
+    $Shortcut.Save()
+    Write-Host ' - Acceso directo de inicio automatico configurado con exito.'
+    """
+
+    # Write to a temporary ps1 file with UTF-8 BOM so Windows PowerShell processes non-ASCII characters and script cleanly
+    with tempfile.NamedTemporaryFile(suffix=".ps1", delete=False, mode="w", encoding="utf-8-sig") as f:
+        f.write(ps_script)
+        temp_path = f.name
+
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", temp_path],
+            capture_output=True,
+            text=True,
+            encoding="cp850"
+        )
+        if result.returncode != 0:
+            logging.error(f"Error de PowerShell durante setup: {result.stderr}")
+            print(f"[ERROR] Hubo un fallo al configurar la impresora en Windows:\n{result.stderr}")
+            sys.exit(1)
+        else:
+            print(result.stdout)
+            logging.info(result.stdout)
+    finally:
+        try:
+            os.remove(temp_path)
+        except Exception:
+            pass
+
 if __name__ == "__main__":
-    run_server()
+    if len(sys.argv) > 1 and sys.argv[1] == "--setup":
+        setup_windows_printer()
+    else:
+        run_server()

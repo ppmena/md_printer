@@ -43,25 +43,18 @@ if %errorLevel% neq 0 (
 echo [OK] Dependencias instaladas con exito.
 echo.
 
-:: 3. Setup Virtual Printer and Port using PowerShell (Single-line execution to avoid command prompt caret parser bugs)
-echo [+] Configurando Puerto TCP/IP local (127.0.0.1:9100) e Impresora...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$PN='MarkdownPrinterPort'; $PR='Markdown Printer'; $DR='Microsoft Print to PDF'; Write-Host ' - Verificando puerto...'; if (!(Get-PrinterPort -Name $PN -EA SilentlyContinue)) { Write-Host ' - Creando puerto TCP/IP local en 127.0.0.1 (Puerto 9100)...'; Add-PrinterPort -Name $PN -PrinterHostAddress '127.0.0.1' } else { Write-Host ' - El puerto ya existe.' }; Write-Host ' - Verificando controlador (driver)...'; if (!(Get-PrinterDriver -Name $DR -EA SilentlyContinue)) { Write-Error 'El controlador Microsoft Print to PDF no esta instalado. Por favor, asegurese de tener activa la caracteristica de Windows: Microsoft Print to PDF.'; exit 1 }; Write-Host ' - Verificando impresora...'; if (!(Get-Printer -Name $PR -EA SilentlyContinue)) { Write-Host ' - Creando impresora virtual: Markdown Printer...'; Add-Printer -Name $PR -DriverName $DR -PortName $PN } else { Write-Host ' - La impresora ya existe.' }"
+:: 3. Setup Virtual Printer, Port and Shortcut using the Python Setup module
+echo [+] Configurando Puerto TCP/IP local (127.0.0.1:9100), Impresora y Acceso directo...
+python "%~dp0printer_server.py" --setup
 if %errorLevel% neq 0 (
     echo [ERROR] Hubo un fallo al configurar la impresora en Windows.
     pause
     exit /b
 )
-echo [OK] Puerto e Impresora configurados correctamente.
+echo [OK] Puerto, Impresora y Acceso directo creados con exito.
 echo.
 
-:: 4. Create startup shortcut (Single-line execution to avoid command prompt caret parser bugs)
-echo [+] Configurando inicio automatico con Windows...
-set "SCRIPT_PATH=%~dp0printer_server.py"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$WshShell = New-Object -ComObject WScript.Shell; $ShortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\MarkdownPrinter.lnk'; $Shortcut = $WshShell.CreateShortcut($ShortcutPath); $Shortcut.TargetPath = 'pythonw.exe'; $Shortcut.Arguments = '\"%SCRIPT_PATH%\"'; $Shortcut.WorkingDirectory = '%~dp0'; $Shortcut.WindowStyle = 7; $Shortcut.Description = 'Servidor de Impresion Markdown'; $Shortcut.Save()"
-echo [OK] Acceso directo de inicio automatico creado.
-echo.
-
-:: 5. Start the server background process now
+:: 4. Start the server background process now
 echo [+] Iniciando el servidor de impresion en segundo plano...
 :: Kill any existing running process of printer_server.py to avoid port in use
 taskkill /f /im pythonw.exe >nul 2>&1
